@@ -2,7 +2,7 @@ import math
 import io
 import requests
 import json
-from colorsys import rgb_to_hsv
+import colorsys
 
 import numpy as np
 from PIL import Image
@@ -24,11 +24,6 @@ def YUV2RGB( yuv ):
     rgb = np.dot(yuv - np.array([0., 128., 128.]), m)
     return rgb
 
-def RGB2HSV(r, g, b):
-    """Convert RGB to HSL (Hue, Saturation, Lightness)."""
-    h, s, v = rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
-    return h * 360, s * 100, v * 100  # Return hue in degrees, saturation and luminance as percentages
-
 def calculate_hue_distance(hue1, hue2):
     """Calculate circular hue distance (mod 360)."""
     diff = abs(hue1 - hue2) % 360
@@ -47,51 +42,42 @@ def bin_value(value, bins):
     return np.digitize(value, bins) - 1
 
 def get_perceived_temperature(h, s, v):
-    h = h / 180
-    s = s / 100
-    v = v / 100
     return ((h - 0.35) / 0.7 if h < 0.7 else math.tan((-h + 0.85) / 0.15) / math.tan(1) * 0.5) * s**1.7 * (0.7 + 0.3*v) * (0.6 if 0.3 < h and h < 0.55 else 1) - 0.3 * v
 
-def get_palette_features(palette):
+def get_palette_features(hsv_palette, hls_palette):
     """Convert a palette of RGB colors to their HSL representations and compute pairwise features."""
-    n = len(palette)
-    hsv_palette = [RGB2HSV(*rgb) for rgb in palette]
+    n = len(hsv_palette)
 
-    # Initialize histograms
-    hue_bins = np.zeros(12, dtype=int)  # Hue distances [0, 180] divided into 12 bins
-    chr_bins = np.zeros(6, dtype=int)   # Saturation differences [0, 100] divided into 6 bins
-    lum_bins = np.zeros(6, dtype=int)   # Luminance differences [0, 100] divided into 6 bins
-    contrast_matrix = np.zeros((3, 3), dtype=int)  # Perceived temperature contrast vs. chr/lum contrast matrix (3x3)
+    hue_bins = np.zeros(12, dtype=int)
+    chr_bins = np.zeros(6, dtype=int)
+    lum_bins = np.zeros(6, dtype=int)
+    contrast_matrix = np.zeros((3, 3), dtype=int)
 
-    # Binning thresholds
-    hue_bin_edges = np.linspace(0, 180, 13)[:12]
-    chr_bin_edges = np.linspace(0, 100, 7)[:6]
-    lum_bin_edges = np.linspace(0, 100, 7)[:6]
+    hue_bin_edges = np.linspace(0, 0.5, 13)[:12]
+    chr_bin_edges = np.linspace(0, 1, 7)[:6]
+    lum_bin_edges = np.linspace(0, 1, 7)[:6]
 
-    # Compute pairwise distances for the entire palette
     for i in range(n):
         for j in range(i + 1, n):
-            h1, s1, l1 = hsv_palette[i]
-            h2, s2, l2 = hsv_palette[j]
+            h1, s1, v1 = hsv_palette[i]
+            h2, s2, v2 = hsv_palette[j]
+            _, l1, _ = hls_palette[i]
+            _, l2, _ = hls_palette[j]
 
-            # Hue distance binning
             hue_dist = calculate_hue_distance(h1, h2)
             hue_bin = bin_value(hue_dist, hue_bin_edges)
             hue_bins[hue_bin] += 1
 
-            # Saturation distance binning
-            chr_dist = calculate_chroma_distance(s1*l1/100, s2*l2/100)
+            chr_dist = calculate_chroma_distance(s1*v1, s2*v2)
             chr_bin = bin_value(chr_dist, chr_bin_edges)
             chr_bins[chr_bin] += 1
 
-            # Luminance distance binning
             lum_dist = calculate_luminance_distance(l1, l2)
             lum_bin = bin_value(lum_dist, lum_bin_edges)
             lum_bins[lum_bin] += 1
 
-            # Contrast matrix
-            temp1 = get_perceived_temperature(h1, s1, l1)
-            temp2 = get_perceived_temperature(h2, s2, l2)
+            temp1 = get_perceived_temperature(h1, s1, v1)
+            temp2 = get_perceived_temperature(h2, s2, v2)
             temp_dist = abs(temp1 - temp2)
             if temp_dist < 0.3:
                 temp_contrast = 0
@@ -101,9 +87,9 @@ def get_palette_features(palette):
                 temp_contrast = 2
 
             # Compute contrast in terms of saturation/luminance
-            if chr_dist > 50 or lum_dist > 50:
+            if chr_dist > .5 or lum_dist > .5:
                 chr_lum_contrast = 2  # High contrast
-            elif chr_dist > 20 or lum_dist > 20:
+            elif chr_dist > .2 or lum_dist > .2:
                 chr_lum_contrast = 1  # Medium contrast
             else:
                 chr_lum_contrast = 0  # Low contrast
@@ -184,21 +170,33 @@ class Indexer:
                 r = {}
                 entry["dominantColors"] = r
                 r["values"] = dominant_colors
-                max_chr = max(s * v for h, s, v in dominant_colors)
-                mean_lum = sum(v for h, s, v in dominant_colors) / len(dominant_colors)
+                dominant_colors = np.array(r["values"])
+                dominant_colors_hsv = [colorsys.rgb_to_hsv(r/255, g/255, b/255) for r, g, b in dominant_colors]
+                dominant_colors_hls = [colorsys.rgb_to_hls(r/255, g/255, b/255) for r, g, b in dominant_colors]
+                n = len(dominant_colors)
+                max_chr = max(s * v for h, s, v in dominant_colors_hsv)
+                mean_lum = sum(l for h, l, s in dominant_colors_hls) / n
+                mean_temp = sum(get_perceived_temperature(h, s, v) for h, s, v in dominant_colors_hsv) / n
                 r["maxChroma"] = max_chr
                 r["meanLuminocity"] = mean_lum
-                r["features"] = np.array([n for ar in get_palette_features(dominant_colors) for n in ar])
+                r["meanTemperature"] = mean_temp
+                r["features"] = np.array([n for ar in get_palette_features(dominant_colors_hsv, dominant_colors_hls) for n in ar])
 
                 accent_colors = [YUV2RGB(yuv_color).astype(int) for yuv_color in 8 * accent_colors]
                 r = {}
                 entry["accentColors"] = r
                 r["values"] = accent_colors
-                max_chr = max(s * v for h, s, v in accent_colors)
-                mean_lum = sum(v for h, s, v in accent_colors) / len(accent_colors)
+                accent_colors = np.array(r["values"])
+                accent_colors_hsv = [colorsys.rgb_to_hsv(r/255, g/255, b/255) for r, g, b in accent_colors]
+                accent_colors_hls = [colorsys.rgb_to_hls(r/255, g/255, b/255) for r, g, b in accent_colors]
+                max_chr = max(s * v for h, s, v in accent_colors_hsv)
+                mean_lum = sum(l for h, l, s in accent_colors_hls) / n
+                mean_temp = sum(get_perceived_temperature(h, s, v) for h, s, v in accent_colors_hsv) / n
                 r["maxChroma"] = max_chr
                 r["meanLuminocity"] = mean_lum
-                r["features"] = np.array([n for ar in get_palette_features(accent_colors) for n in ar])
+                r["meanTemperature"] = mean_temp
+                r["features"] = np.array([n for ar in get_palette_features(accent_colors_hsv, accent_colors_hls) for n in ar])
+
                 entry["fileId"] = fileId
 
                 self.searcher.data[fileId] = entry
