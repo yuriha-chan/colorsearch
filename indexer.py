@@ -128,15 +128,21 @@ class Indexer:
     def __init__(self, searcher):
         self.searcher = searcher
 
-    def add(self, db, fileId, url, searchable, duplicate):
-        if not ((url.endswith("png") or url.endswith("webp"))):
-            return
+    def add(self, db, fileId, url, searchable, exists):
+        # if not ((url.endswith("png") or url.endswith("webp"))):
+        #   return
         if self.searcher.has(fileId):
-            if duplicate == "skip":
+            if exists == "skip":
                 return
             else:
-                db.cursor().execute('UPDATE image SET "searchable" = ? where "fileId" = ?', (searchable, fileId));
+                db.cursor().execute('UPDATE image SET "searchable" = ? where "key" = ?', (searchable, fileId));
                 db.commit();
+                entry = self.searcher.data[fileId]
+                if searchable:
+                    self.searcher.data_searchable.append(entry)
+                else:
+                    # TODO: remove
+                    pass
                 return
         with requests.get(url, stream=True) as response:
             response.raise_for_status()

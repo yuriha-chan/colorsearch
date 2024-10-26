@@ -9,7 +9,6 @@ def top_n_by_score(a, f, n):
     heap = []
     for x in a:
         score = f(x)
-        print(x["fileId"], " ", score)
         if len(heap) < n:
             heapq.heappush(heap, (score, x))
         else:
@@ -40,6 +39,6 @@ class Searcher:
     def search(self, fileId, n, m = 0, weights = {}):
         x = self.data[fileId]
         fx = features(x)
-        score_func = lambda y: -(weights.get("features", 1) * dist(fx, features(y)) + weights.get("entropy", 0.5) * abs(x["entropy"] - y["entropy"]) + weights.get("maxChroma", 0.2) * abs(x["maxChroma"] - y["maxChroma"]) + weights.get("meanLuminocity", 0.2) * abs(x["meanLuminocity"] - y["meanLuminocity"]))
+        score_func = lambda y: -(weights.get("features", 1) * dist(fx, features(y)) + weights.get("entropy", 0.5) * abs(x["entropy"] - y["entropy"]) + weights.get("maxChroma", 0.1) * abs(x["accentColors"]["maxChroma"] - y["accentColors"]["maxChroma"]) + weights.get("meanLuminocity", 0.01) * abs(x["dominantColors"]["meanLuminocity"] - y["dominantColors"]["meanLuminocity"]) + weights.get("meanTemperature", 0.03) * abs(x["accentColors"]["meanTemperature"] - y["accentColors"]["meanTemperature"]))
         top_n = top_n_by_score(self.data_searchable, score_func, n + m)
-        return [{"fileId": r["fileId"]} for r in top_n][m:]
+        return [{"fileId": r["fileId"], "accentColors": r["accentColors"], "dominantColors": r["dominantColors"]} for r in top_n][m:]

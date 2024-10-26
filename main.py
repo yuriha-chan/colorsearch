@@ -10,12 +10,13 @@ searcher = Searcher(conn)
 indexer = Indexer(searcher)
 
 @app.get("/search")
-def search(fileId: str = Query(...), limit: int = Query(5), offset: int = Query(0), weights: str = Qeury("{}")):
+def search(fileId: str = Query(...), limit: int = Query(5), offset: int = Query(0), weights: str = Query("{}")):
     return searcher.search(fileId, limit, offset, json.loads(weights))
 
 @app.post("/update")
 def update(data: dict):
     conn = sqlite3.connect("imgs.sqlite")
-    result = indexer.add(conn, data["fileId"], data["url"], data["searchable"], data["duplicate"])
+    print("update: ", json.dumps(data))
+    result = indexer.add(conn, data["fileId"], data["url"], data["searchable"], data["exists"])
     conn.close()
     return result
