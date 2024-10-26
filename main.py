@@ -16,7 +16,6 @@ def search(fileId: str = Query(...), limit: int = Query(5), offset: int = Query(
 @app.post("/update")
 def update(data: dict):
     conn = sqlite3.connect("imgs.sqlite")
-    print("update: ", json.dumps(data))
     result = indexer.add(conn, data["fileId"], data["url"], data["searchable"], data["exists"])
     conn.close()
     return result

@@ -169,7 +169,7 @@ class Indexer:
                 dominant_colors = [YUV2RGB(yuv_color).astype(int) for yuv_color in 8 * dominant_colors]
                 r = {}
                 entry["dominantColors"] = r
-                r["values"] = dominant_colors
+                r["values"] = to_list(dominant_colors)
                 dominant_colors = np.array(r["values"])
                 dominant_colors_hsv = [colorsys.rgb_to_hsv(r/255, g/255, b/255) for r, g, b in dominant_colors]
                 dominant_colors_hls = [colorsys.rgb_to_hls(r/255, g/255, b/255) for r, g, b in dominant_colors]
@@ -185,7 +185,7 @@ class Indexer:
                 accent_colors = [YUV2RGB(yuv_color).astype(int) for yuv_color in 8 * accent_colors]
                 r = {}
                 entry["accentColors"] = r
-                r["values"] = accent_colors
+                r["values"] = to_list(accent_colors)
                 accent_colors = np.array(r["values"])
                 accent_colors_hsv = [colorsys.rgb_to_hsv(r/255, g/255, b/255) for r, g, b in accent_colors]
                 accent_colors_hls = [colorsys.rgb_to_hls(r/255, g/255, b/255) for r, g, b in accent_colors]

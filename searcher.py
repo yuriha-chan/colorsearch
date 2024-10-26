@@ -16,7 +16,6 @@ def top_n_by_score(a, f, n):
             if score > heap[0][0]:
                 # push the new pair and pop the smallest pair
                 heapq.heappushpop(heap, (score, x))
-    print([s for s, _ in heap])
     return [x for _, x in heap]
 
 def features(e):
@@ -41,4 +40,4 @@ class Searcher:
         fx = features(x)
         score_func = lambda y: -(weights.get("features", 1) * dist(fx, features(y)) + weights.get("entropy", 0.5) * abs(x["entropy"] - y["entropy"]) + weights.get("maxChroma", 0.1) * abs(x["accentColors"]["maxChroma"] - y["accentColors"]["maxChroma"]) + weights.get("meanLuminocity", 0.01) * abs(x["dominantColors"]["meanLuminocity"] - y["dominantColors"]["meanLuminocity"]) + weights.get("meanTemperature", 0.03) * abs(x["accentColors"]["meanTemperature"] - y["accentColors"]["meanTemperature"]))
         top_n = top_n_by_score(self.data_searchable, score_func, n + m)
-        return [{"fileId": r["fileId"], "accentColors": r["accentColors"], "dominantColors": r["dominantColors"]} for r in top_n][m:]
+        return [{"fileId": r["fileId"], "accentColors": r["accentColors"]["values"], "dominantColors": r["dominantColors"]["values"]} for r in top_n][m:]
