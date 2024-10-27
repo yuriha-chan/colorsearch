@@ -115,8 +115,9 @@ class Indexer:
         self.searcher = searcher
 
     def add(self, db, fileId, url, searchable, exists):
-        # if not ((url.endswith("png") or url.endswith("webp"))):
-        #   return
+        if not ((url.endswith("png") or url.endswith("webp"))):
+            return
+
         if self.searcher.has(fileId):
             if exists == "skip":
                 return
@@ -145,7 +146,7 @@ class Indexer:
 
                 data_points = np.argwhere(freq > 0)
                 weights = freq[freq > 0]
-                k = 5
+                k = min(data_points.shape[0], 5)
                 kmeans = KMeans(n_clusters=k)
                 kmeans.fit(data_points, sample_weight=weights)
                 labels = kmeans.labels_
@@ -157,11 +158,14 @@ class Indexer:
                 u = data_points_2[:,1]
                 v = data_points_2[:,2]
                 r2 = np.maximum(0, (u - 16)**2 + (v - 16)**2)
-                k = 5
-                kmeans = KMeans(n_clusters=k)
-                kmeans.fit(data_points_2, sample_weight=r2*(-np.min(np.log(weights_2))+np.log(weights_2)))
-                labels = kmeans.labels_
-                accent_colors = kmeans.cluster_centers_
+                k = min(data_points_2.shape[0], 5)
+                if (k > 1):
+                    kmeans = KMeans(n_clusters=k)
+                    kmeans.fit(data_points_2, sample_weight=r2*(-np.min(np.log(weights_2))+np.log(weights_2)))
+                    labels = kmeans.labels_
+                    accent_colors = kmeans.cluster_centers_
+                else:
+                    accent_colors = dominant_colors
 
                 entry = {}
                 entry["entropy"] = entropy
